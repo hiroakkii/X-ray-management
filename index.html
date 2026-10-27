@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>訪問患者リスト</title>
+  <link rel="stylesheet" href="lib/leaflet/leaflet.css">
   <link rel="stylesheet" href="style.css">
   <style id="page-style">@page { size: A4 landscape; margin: 12mm; }</style>
 </head>
@@ -69,6 +70,12 @@
             <option value="portrait">A4 縦</option>
           </select>
         </label>
+        <label>並び
+          <select id="list-order">
+            <option value="group">居宅とグループホームで分ける</option>
+            <option value="route">訪問ルート順</option>
+          </select>
+        </label>
         <label>グループホーム
           <select id="gh-position">
             <option value="last">居宅の後にまとめる</option>
@@ -76,7 +83,7 @@
           </select>
         </label>
       </div>
-      <p class="hint">列の見出しをクリックすると並べ替えます（もう一度で逆順）。グループホームの患者は居宅と分け、ホームごとにまとめて並べ替えます。↑↓で個別に順番を変更できます。年齢は訪問日時点で計算します。</p>
+      <p class="hint">列の見出しをクリックすると並べ替えます（もう一度で逆順）。グループホームの患者は居宅と分け、ホームごとにまとめて並べ替えます。「訪問ルート順」では下の地図で計算した順番になり、グループホームの患者の直前にホーム名の行が入ります。↑↓で個別に順番を変更できます。年齢は訪問日時点で計算します。</p>
       <div class="table-wrap">
         <table class="data-table" id="today-table">
           <thead>
@@ -97,6 +104,39 @@
       <div class="today-actions">
         <button type="button" class="btn" id="btn-clear-today">リストを空にする</button>
         <button type="button" class="btn primary" id="btn-print">印刷</button>
+      </div>
+    </section>
+
+    <!-- 訪問ルート -->
+    <section class="panel route-panel" id="route-panel">
+      <h2>訪問ルート（地図）</h2>
+      <div class="today-controls">
+        <label>事業所（出発地）の住所 <input type="text" id="office-address" class="office-input" placeholder="例: 東京都千代田区千代田1-1"></label>
+        <label>
+          <select id="trip-mode">
+            <option value="round">往復（事業所に戻る）</option>
+            <option value="oneway">片道（最後の訪問先で終了）</option>
+          </select>
+        </label>
+      </div>
+      <div class="route-actions">
+        <button type="button" class="btn" id="btn-geocode">① 住所から位置を取得</button>
+        <button type="button" class="btn" id="btn-optimize">② 訪問順を計算</button>
+        <button type="button" class="btn primary" id="btn-apply-route">③ この順番を当日リストに反映</button>
+        <button type="button" class="btn" id="btn-fit">全体を表示</button>
+      </div>
+      <p class="hint">
+        ①では住所の文字列だけを国土地理院の住所検索に送ります（氏名・IDなどは送りません）。取得した位置はこのブラウザに保存し、同じ住所は再送信しません。
+        ピンはドラッグで位置を直せます。②の計算はこのPCの中で行います（直線距離。同じグループホームは1か所として計算）。
+      </p>
+      <p class="route-status" id="route-status"></p>
+      <div class="route-body">
+        <div id="route-map"></div>
+        <div class="route-side">
+          <p class="hint" id="route-summary"></p>
+          <div id="gmaps-links" class="gmaps-links"></div>
+          <ol class="route-list" id="route-list"></ol>
+        </div>
       </div>
     </section>
   </main>
@@ -157,6 +197,8 @@
   </dialog>
 
   <script src="lib/xlsx.full.min.js"></script>
+  <script src="lib/leaflet/leaflet.js"></script>
   <script src="app.js"></script>
+  <script src="route.js"></script>
 </body>
 </html>

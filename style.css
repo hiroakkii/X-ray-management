@@ -181,6 +181,40 @@ dialog::backdrop { background: rgba(20, 30, 40, .45); }
 .warn.error { background: #fdecec; border-color: #e57373; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
 
+/* 訪問ルート */
+.route-panel { grid-column: 1 / -1; }
+.office-input { width: min(420px, 60vw); }
+.route-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.route-status { margin: 0; min-height: 1.4em; color: #1b6b32; }
+.route-status.is-warn { color: #9a5b00; }
+.route-body { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 12px; }
+@media (max-width: 900px) {
+  .route-body { grid-template-columns: minmax(0, 1fr); }
+}
+#route-map { height: 540px; border: 1px solid var(--border); border-radius: 6px; z-index: 0; }
+#route-map.picking { cursor: crosshair; }
+#route-map.picking .leaflet-grab { cursor: crosshair; }
+.route-side { display: flex; flex-direction: column; gap: 8px; max-height: 540px; overflow: auto; }
+.route-list { margin: 0; padding: 0; list-style: none; border: 1px solid var(--border); border-radius: 6px; }
+.route-list li { padding: 6px 10px; border-bottom: 1px solid #e8ecef; }
+.route-list li:last-child { border-bottom: none; }
+.route-list li.gh { background: #faf5ea; }
+.route-list li.office { background: #eef3fb; color: var(--muted); }
+.route-list li.empty { color: var(--muted); text-align: center; padding: 20px; }
+.route-addr { color: var(--muted); font-size: 12px; }
+.tag { display: inline-block; padding: 0 6px; margin-right: 4px; border-radius: 8px; font-size: 11px; background: #fdecec; color: var(--danger); }
+.gmaps-links { display: flex; flex-direction: column; gap: 6px; }
+.gmaps-links a { text-decoration: none; }
+.route-pin span {
+  display: flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 50%;
+  background: var(--accent); color: #fff; font-weight: 700; font-size: 14px;
+  border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, .4);
+}
+.route-pin.gh span { background: #c77700; }
+.route-pin.office span { background: #2e7d32; border-radius: 6px; }
+.popup-addr, .popup-hit { color: var(--muted); font-size: 12px; }
+
 /* 印刷 */
 .print-only { display: none; }
 

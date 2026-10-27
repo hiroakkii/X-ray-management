@@ -97,7 +97,7 @@
     importMeta: null,
     today: [],
     todaySort: null, // { key, dir: 1 | -1 }
-    settings: { version: 2, visitDate: '', title: '訪問予定患者一覧', birthFormat: 'ad', paper: 'landscape', ghPosition: 'last' },
+    settings: { version: 2, visitDate: '', title: '訪問予定患者一覧', birthFormat: 'ad', paper: 'landscape', ghPosition: 'last', listOrder: 'group' },
   };
   let byKey = new Map();
   let pending = null; // 取込確認中のデータ
@@ -373,6 +373,7 @@
         birthRaw: birthText,
         ageRaw: cleanText(get(fmt, 'age')),
         address,
+        addr1: cleanText(get(fmt, 'address')),
         gh: normalizeGh(get(fmt, 'gh')),
       });
     }
@@ -648,6 +649,8 @@
   function sortToday(key) {
     const dir = state.todaySort && state.todaySort.key === key ? -state.todaySort.dir : 1;
     state.todaySort = { key, dir };
+    state.settings.listOrder = 'group';
+    $('#list-order').value = 'group';
     applySort();
     save();
     renderToday();
@@ -671,7 +674,18 @@
 
   // 当日リストを「居宅」と「グループホーム（名称ごと）」に分ける。
   // 並べ替えは各グループの中で行われ、グループどうしが混ざることはない。
+  // 訪問ルート順のときは並びをそのまま使い、連続する同じグループホームを1つにまとめる。
   function groupedToday() {
+    if (state.settings.listOrder === 'route') {
+      const runs = [];
+      for (const k of state.today) {
+        const g = byKey.get(k).gh || '';
+        const last = runs[runs.length - 1];
+        if (last && last.gh === g) last.keys.push(k);
+        else runs.push({ gh: g, keys: [k] });
+      }
+      return runs;
+    }
     const groups = new Map();
     for (const k of state.today) {
       const g = byKey.get(k).gh || '';
@@ -689,8 +703,10 @@
     return `${name}（${g.keys.length}名）`;
   }
 
-  function hasGroups(groups) {
-    return groups.some((g) => g.gh);
+  // 見出し行を出すか。訪問ルート順ではグループホームの直前にだけ出す
+  function showGroupHeader(groups, g) {
+    if (state.settings.listOrder === 'route') return !!g.gh;
+    return groups.some((x) => x.gh);
   }
 
   function renderToday() {
@@ -701,10 +717,9 @@
       if (state.todaySort && th.dataset.key === state.todaySort.key) th.classList.add(state.todaySort.dir > 0 ? 'asc' : 'desc');
     });
     const groups = groupedToday();
-    const showGroups = hasGroups(groups);
     const html = [];
     for (const g of groups) {
-      if (showGroups) html.push(`<tr class="group-row${g.gh ? ' gh' : ''}"><td colspan="8">${esc(groupLabel(g))}</td></tr>`);
+      if (showGroupHeader(groups, g)) html.push(`<tr class="group-row${g.gh ? ' gh' : ''}"><td colspan="8">${esc(groupLabel(g))}</td></tr>`);
       const last = g.keys.length - 1;
       g.keys.forEach((k, i) => {
         const p = byKey.get(k);
@@ -723,6 +738,8 @@
     }
     $('#today-table tbody').innerHTML = html.join('') || '<tr><td colspan="8" class="empty">検索結果でチェックした患者がここに表示されます</td></tr>';
     $('#btn-print').disabled = state.today.length === 0;
+    $('#gh-position').disabled = state.settings.listOrder === 'route';
+    if (window.VisitRoute) window.VisitRoute.refresh();
   }
 
   function onTodayTableClick(e) {
@@ -796,10 +813,9 @@
     $('#print-meta').textContent = `訪問日: ${formatVisitDate(state.settings.visitDate || todayIso())}　${state.today.length}名`;
     $('#print-cols').innerHTML = cols.map((c) => `<col style="width:${c.mm}mm">`).join('');
     const groups = groupedToday();
-    const showGroups = hasGroups(groups);
     const html = [];
     for (const g of groups) {
-      if (showGroups) html.push(`<tr class="group-row"><td colspan="7">${esc(groupLabel(g))}</td></tr>`);
+      if (showGroupHeader(groups, g)) html.push(`<tr class="group-row"><td colspan="7">${esc(groupLabel(g))}</td></tr>`);
       for (const k of g.keys) {
         const p = byKey.get(k);
         const age = ageOf(p);
@@ -855,6 +871,7 @@
     $('#btn-clear-all').addEventListener('click', () => {
       if (!confirm('このブラウザに保存されている患者マスタと当日リストを消去します。よろしいですか？')) return;
       localStorage.removeItem(STORAGE_KEY);
+      if (window.VisitRoute) window.VisitRoute.clearStorage();
       state.patients = [];
       state.importMeta = null;
       state.today = [];
@@ -894,9 +911,28 @@
     bindSetting('#birth-format', 'birthFormat', true);
     bindSetting('#paper', 'paper', false);
     bindSetting('#gh-position', 'ghPosition', true);
+    bindSetting('#list-order', 'listOrder', true);
 
     renderAll();
   }
+
+  // 地図・訪問ルート（route.js）から使う窓口
+  window.VisitApp = {
+    // 当日リストの患者（表示順）
+    todayPatients() {
+      return groupedToday().flatMap((g) => g.keys).map((k) => byKey.get(k));
+    },
+    // 計算した訪問順を当日リストに反映する
+    applyRouteOrder(keys) {
+      const set = new Set(keys);
+      state.today = keys.filter((k) => byKey.has(k)).concat(state.today.filter((k) => !set.has(k)));
+      state.todaySort = null;
+      state.settings.listOrder = 'route';
+      $('#list-order').value = 'route';
+      save();
+      renderToday();
+    },
+  };
 
   document.addEventListener('DOMContentLoaded', init);
 })();
