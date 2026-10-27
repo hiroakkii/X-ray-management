@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>訪問患者リスト</title>
+  <link rel="stylesheet" href="style.css">
+  <style id="page-style">@page { size: A4 portrait; margin: 12mm; }</style>
+</head>
+<body>
+  <header class="app-header no-print">
+    <h1>訪問患者リスト</h1>
+    <div class="master-status" id="master-status">患者マスタ未取込</div>
+    <div class="header-actions">
+      <label class="btn primary">
+        患者マスタ取込（Excel）
+        <input type="file" id="file-input" accept=".xlsx,.xlsm,.xls,.csv" hidden>
+      </label>
+      <button type="button" class="btn" id="btn-remap" disabled>取込設定を再確認</button>
+      <button type="button" class="btn danger-outline" id="btn-clear-all">保存データ消去</button>
+    </div>
+  </header>
+
+  <main class="layout no-print">
+    <!-- 検索 -->
+    <section class="panel" id="search-panel">
+      <h2>患者検索</h2>
+      <div class="search-bar">
+        <input type="search" id="search-input" placeholder="患者名・ふりがな・ID・住所で検索（スペース区切りで複数条件）" autocomplete="off" disabled>
+        <select id="search-target" disabled>
+          <option value="all">すべて</option>
+          <option value="id">ID</option>
+          <option value="kana">ふりがな</option>
+          <option value="name">患者名</option>
+          <option value="address">住所</option>
+        </select>
+      </div>
+      <p class="hint" id="search-info">Excelの患者マスタを取り込むと検索できます。</p>
+      <div class="table-wrap">
+        <table class="data-table" id="search-table">
+          <thead>
+            <tr>
+              <th class="col-check">当日</th>
+              <th>ID</th><th>ふりがな</th><th>患者名</th><th>性別</th><th>生年月日</th><th>年齢</th><th>住所</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 当日リスト -->
+    <section class="panel" id="today-panel">
+      <h2>当日訪問リスト <span class="count" id="today-count">0名</span></h2>
+      <div class="today-controls">
+        <label>訪問日 <input type="date" id="visit-date"></label>
+        <label>表題 <input type="text" id="print-title" value="訪問予定患者一覧"></label>
+        <label>生年月日表記
+          <select id="birth-format">
+            <option value="ad">西暦（1950/03/04）</option>
+            <option value="jp">和暦（S25.03.04）</option>
+            <option value="both">併記（S25.03.04 / 1950）</option>
+          </select>
+        </label>
+        <label>用紙
+          <select id="paper">
+            <option value="portrait">A4 縦</option>
+            <option value="landscape">A4 横</option>
+          </select>
+        </label>
+      </div>
+      <p class="hint">列の見出しをクリックすると並べ替えます（もう一度で逆順）。↑↓で個別に順番を変更できます。年齢は訪問日時点で計算します。</p>
+      <div class="table-wrap">
+        <table class="data-table" id="today-table">
+          <thead>
+            <tr>
+              <th class="sortable" data-key="id">ID</th>
+              <th class="sortable" data-key="kana">ふりがな</th>
+              <th class="sortable" data-key="name">患者名</th>
+              <th class="sortable" data-key="sex">性別</th>
+              <th class="sortable" data-key="birth">生年月日</th>
+              <th class="sortable" data-key="age">年齢</th>
+              <th class="sortable" data-key="address">住所</th>
+              <th class="col-ops">操作</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="today-actions">
+        <button type="button" class="btn" id="btn-clear-today">リストを空にする</button>
+        <button type="button" class="btn primary" id="btn-print">印刷</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- 印刷用 -->
+  <section id="print-area" class="print-only">
+    <div class="print-head">
+      <h1 id="print-h1"></h1>
+      <div id="print-meta"></div>
+    </div>
+    <table class="print-table">
+      <thead>
+        <tr><th>ID</th><th>ふりがな</th><th>患者名</th><th>性別</th><th>生年月日</th><th>年齢</th><th>住所</th></tr>
+      </thead>
+      <tbody id="print-body"></tbody>
+    </table>
+  </section>
+
+  <!-- 取込確認画面 -->
+  <dialog id="import-dialog" class="no-print">
+    <div class="dialog-body" id="import-form">
+      <h2>取込内容の確認</h2>
+      <p class="hint">Excelの題名（見出し）から各列の取込先を自動判別しました。間違っている場合は「取込先」を変更してください。</p>
+
+      <div class="import-options">
+        <label id="sheet-label">シート <select id="sheet-select"></select></label>
+        <label>見出し（題名）の行 <input type="number" id="header-row" min="1" value="1"> 行目</label>
+        <span class="file-name" id="import-file-name"></span>
+      </div>
+
+      <h3>列ごとの取込先</h3>
+      <div class="table-wrap mapping-wrap">
+        <table class="data-table" id="mapping-table">
+          <thead>
+            <tr><th>Excel列</th><th>題名（見出し）</th><th>データ例</th><th>取込先</th><th>判別</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div id="mapping-warnings" class="warnings"></div>
+
+      <h3>取込結果プレビュー <span class="hint" id="preview-info"></span></h3>
+      <div class="table-wrap preview-wrap">
+        <table class="data-table" id="preview-table">
+          <thead>
+            <tr><th>Excel行</th><th>ID</th><th>ふりがな</th><th>患者名</th><th>性別</th><th>生年月日</th><th>年齢</th><th>住所</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="btn-import-cancel">キャンセル</button>
+        <button type="button" class="btn primary" id="btn-import-ok">この内容で取り込む</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="lib/xlsx.full.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
