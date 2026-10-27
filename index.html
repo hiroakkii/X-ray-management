@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>訪問患者リスト</title>
   <link rel="stylesheet" href="style.css">
-  <style id="page-style">@page { size: A4 portrait; margin: 12mm; }</style>
+  <style id="page-style">@page { size: A4 landscape; margin: 12mm; }</style>
 </head>
 <body>
   <header class="app-header no-print">
@@ -33,6 +33,7 @@
           <option value="kana">ふりがな</option>
           <option value="name">患者名</option>
           <option value="address">住所</option>
+          <option value="gh">グループホーム</option>
         </select>
       </div>
       <p class="hint" id="search-info">Excelの患者マスタを取り込むと検索できます。</p>
@@ -41,7 +42,7 @@
           <thead>
             <tr>
               <th class="col-check">当日</th>
-              <th>ID</th><th>ふりがな</th><th>患者名</th><th>性別</th><th>生年月日</th><th>年齢</th><th>住所</th>
+              <th>ID</th><th>ふりがな</th><th>患者名</th><th>性別</th><th>生年月日</th><th>年齢</th><th>住所</th><th>GH</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -64,12 +65,18 @@
         </label>
         <label>用紙
           <select id="paper">
-            <option value="portrait">A4 縦</option>
             <option value="landscape">A4 横</option>
+            <option value="portrait">A4 縦</option>
+          </select>
+        </label>
+        <label>グループホーム
+          <select id="gh-position">
+            <option value="last">居宅の後にまとめる</option>
+            <option value="first">居宅の前にまとめる</option>
           </select>
         </label>
       </div>
-      <p class="hint">列の見出しをクリックすると並べ替えます（もう一度で逆順）。↑↓で個別に順番を変更できます。年齢は訪問日時点で計算します。</p>
+      <p class="hint">列の見出しをクリックすると並べ替えます（もう一度で逆順）。グループホームの患者は居宅と分け、ホームごとにまとめて並べ替えます。↑↓で個別に順番を変更できます。年齢は訪問日時点で計算します。</p>
       <div class="table-wrap">
         <table class="data-table" id="today-table">
           <thead>
@@ -101,6 +108,7 @@
       <div id="print-meta"></div>
     </div>
     <table class="print-table">
+      <colgroup id="print-cols"></colgroup>
       <thead>
         <tr><th>ID</th><th>ふりがな</th><th>患者名</th><th>性別</th><th>生年月日</th><th>年齢</th><th>住所</th></tr>
       </thead>
@@ -135,7 +143,7 @@
       <div class="table-wrap preview-wrap">
         <table class="data-table" id="preview-table">
           <thead>
-            <tr><th>Excel行</th><th>ID</th><th>ふりがな</th><th>患者名</th><th>性別</th><th>生年月日</th><th>年齢</th><th>住所</th></tr>
+            <tr><th>Excel行</th><th>ID</th><th>ふりがな</th><th>患者名</th><th>性別</th><th>生年月日</th><th>年齢</th><th>住所</th><th>グループホーム</th></tr>
           </thead>
           <tbody></tbody>
         </table>

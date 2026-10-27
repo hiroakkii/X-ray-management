@@ -61,7 +61,25 @@
       partial: ['住所2', '番地', '建物', '方書'],
       exclude: ['郵便', 'カナ', 'ふりがな'],
     },
+    {
+      key: 'gh', label: 'グループホーム',
+      exact: ['グループホーム', 'グループホーム名', 'GH', 'GH名', '施設', '施設名', '入居施設', '入居施設名', '入所施設', '居住施設', 'ホーム名'],
+      partial: ['グループホーム', 'GH', '入居施設', '施設名', 'ホーム'],
+      exclude: ['住所', '電話', '郵便', 'カナ', 'ふりがな', 'ID', '番号', 'コード', 'TEL', 'FAX'],
+    },
   ];
+  // グループホーム列が名称ではなく「○」「有」などの印だけの場合
+  const GH_FLAG_VALUES = ['○', '◯', '〇', '●', '◎', '1', '有', 'あり', 'はい', '該当', '入居', 'gh', 'グループホーム', '✓', '✔', 'レ', 'y', 'yes'];
+  const GH_NONE_VALUES = ['', '-', '―', 'ー', '×', '✕', '0', '無', 'なし', 'いいえ', '非該当', '居宅', '在宅', 'n', 'no'];
+  const GH_FLAG_LABEL = 'グループホーム';
+
+  // 印刷レイアウト（mm / pt）
+  const PRINT_MARGIN_MM = 12;
+  const PRINT_BASE_PT = 11;
+  const PRINT_MIN_PT = 6.5;
+  const PRINT_FONT = '"Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif';
+  const MM_TO_PX = 96 / 25.4;
+  const PT_TO_PX = 96 / 72;
   const FIELD_BY_KEY = Object.fromEntries(FIELDS.map((f) => [f.key, f]));
 
   const ERAS = [
@@ -79,7 +97,7 @@
     importMeta: null,
     today: [],
     todaySort: null, // { key, dir: 1 | -1 }
-    settings: { visitDate: '', title: '訪問予定患者一覧', birthFormat: 'ad', paper: 'portrait' },
+    settings: { version: 2, visitDate: '', title: '訪問予定患者一覧', birthFormat: 'ad', paper: 'landscape', ghPosition: 'last' },
   };
   let byKey = new Map();
   let pending = null; // 取込確認中のデータ
@@ -208,6 +226,15 @@
     return s;
   }
 
+  // グループホーム名を返す。グループホームでなければ空文字
+  function normalizeGh(v) {
+    const s = cleanText(v);
+    const k = s.toLowerCase();
+    if (GH_NONE_VALUES.includes(k)) return '';
+    if (GH_FLAG_VALUES.includes(k)) return GH_FLAG_LABEL;
+    return s;
+  }
+
   // ---------- 保存 ----------
   function save() {
     try {
@@ -231,7 +258,10 @@
       state.importMeta = data.importMeta || null;
       state.today = Array.isArray(data.today) ? data.today : [];
       state.todaySort = data.todaySort || null;
-      Object.assign(state.settings, data.settings || {});
+      const saved = data.settings || {};
+      // 旧版の初期値（A4縦）で保存されている場合は A4横 にする
+      if (!saved.version) { delete saved.paper; saved.version = 2; }
+      Object.assign(state.settings, saved);
     } catch (e) {
       console.warn(e);
     }
@@ -343,6 +373,7 @@
         birthRaw: birthText,
         ageRaw: cleanText(get(fmt, 'age')),
         address,
+        gh: normalizeGh(get(fmt, 'gh')),
       });
     }
     // 重複しないキーを割り当てる（IDがあればID、重複・未設定なら行番号を付加）
@@ -470,9 +501,10 @@
         <td>${esc(formatBirth(p, fmt))}</td>
         <td class="num">${esc(age != null ? age : p.ageRaw)}</td>
         <td class="addr">${esc(p.address)}</td>
+        <td>${esc(p.gh)}</td>
       </tr>`;
     }).join('');
-    $('#preview-table tbody').innerHTML = html || '<tr><td colspan="8" class="empty">取込対象の行がありません</td></tr>';
+    $('#preview-table tbody').innerHTML = html || '<tr><td colspan="9" class="empty">取込対象の行がありません</td></tr>';
   }
 
   function renderWarnings(patients) {
@@ -482,7 +514,7 @@
     if (m.id == null && m.name == null) msgs.push({ error: true, text: '「ID」または「患者名」の列を指定してください。' });
     else if (patients.length === 0) msgs.push({ error: true, text: '見出し行より下に取込対象のデータがありません。見出しの行を確認してください。' });
 
-    const missing = ['id', 'kana', 'name', 'sex', 'birth', 'address']
+    const missing = ['id', 'kana', 'name', 'sex', 'birth', 'address', 'gh']
       .filter((k) => m[k] == null).map((k) => FIELD_BY_KEY[k].label);
     if (m.birth == null && m.age == null) missing.push('年齢');
     if (missing.length) msgs.push({ text: `未割当の項目: ${missing.join('、')}（空欄で取り込まれます）` });
@@ -548,7 +580,7 @@
     const q = $('#search-input').value;
     const target = $('#search-target').value;
     const terms = q.split(/[\s　]+/).map(normalize).filter(Boolean);
-    const fieldsFor = target === 'all' ? ['id', 'kana', 'name', 'address'] : [target];
+    const fieldsFor = target === 'all' ? ['id', 'kana', 'name', 'address', 'gh'] : [target];
     return state.patients.filter((p) => {
       if (!terms.length) return true;
       const hay = fieldsFor.map((f) => normalize(p[f])).join('\n');
@@ -563,7 +595,7 @@
     const tbody = $('#search-table tbody');
     if (!has) {
       $('#search-info').textContent = 'Excelの患者マスタを取り込むと検索できます。';
-      tbody.innerHTML = '<tr><td colspan="8" class="empty">患者マスタが取り込まれていません</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" class="empty">患者マスタが取り込まれていません</td></tr>';
       return;
     }
     const results = searchPatients();
@@ -579,8 +611,9 @@
         <td>${esc(p.id)}</td><td>${esc(p.kana)}</td><td>${esc(p.name)}</td><td>${esc(p.sex)}</td>
         <td>${esc(formatBirth(p, fmt))}</td><td class="num">${esc(age != null ? age : '')}</td>
         <td class="addr">${esc(p.address)}</td>
+        <td class="gh">${esc(p.gh)}</td>
       </tr>`;
-    }).join('') || '<tr><td colspan="8" class="empty">該当する患者がいません</td></tr>';
+    }).join('') || '<tr><td colspan="9" class="empty">該当する患者がいません</td></tr>';
   }
 
   function onSearchTableClick(e) {
@@ -636,6 +669,30 @@
       .map((x) => x.k);
   }
 
+  // 当日リストを「居宅」と「グループホーム（名称ごと）」に分ける。
+  // 並べ替えは各グループの中で行われ、グループどうしが混ざることはない。
+  function groupedToday() {
+    const groups = new Map();
+    for (const k of state.today) {
+      const g = byKey.get(k).gh || '';
+      if (!groups.has(g)) groups.set(g, []);
+      groups.get(g).push(k);
+    }
+    const home = groups.has('') ? [{ gh: '', keys: groups.get('') }] : [];
+    const gh = [...groups.keys()].filter(Boolean).sort(collator.compare).map((g) => ({ gh: g, keys: groups.get(g) }));
+    return state.settings.ghPosition === 'first' ? gh.concat(home) : home.concat(gh);
+  }
+
+  function groupLabel(g) {
+    if (!g.gh) return `居宅（${g.keys.length}名）`;
+    const name = /グループホーム|GH/i.test(g.gh) ? g.gh : `グループホーム　${g.gh}`;
+    return `${name}（${g.keys.length}名）`;
+  }
+
+  function hasGroups(groups) {
+    return groups.some((g) => g.gh);
+  }
+
   function renderToday() {
     const fmt = state.settings.birthFormat;
     $('#today-count').textContent = `${state.today.length}名`;
@@ -643,21 +700,28 @@
       th.classList.remove('asc', 'desc');
       if (state.todaySort && th.dataset.key === state.todaySort.key) th.classList.add(state.todaySort.dir > 0 ? 'asc' : 'desc');
     });
-    const last = state.today.length - 1;
-    $('#today-table tbody').innerHTML = state.today.map((k, i) => {
-      const p = byKey.get(k);
-      const age = ageOf(p);
-      return `<tr data-key="${esc(k)}">
-        <td>${esc(p.id)}</td><td>${esc(p.kana)}</td><td>${esc(p.name)}</td><td>${esc(p.sex)}</td>
-        <td>${esc(formatBirth(p, fmt))}</td><td class="num">${esc(age != null ? age : '')}</td>
-        <td class="addr">${esc(p.address)}</td>
-        <td><div class="ops">
-          <button type="button" class="btn small" data-op="up" ${i === 0 ? 'disabled' : ''} title="上へ">↑</button>
-          <button type="button" class="btn small" data-op="down" ${i === last ? 'disabled' : ''} title="下へ">↓</button>
-          <button type="button" class="btn small" data-op="remove" title="リストから外す">外す</button>
-        </div></td>
-      </tr>`;
-    }).join('') || '<tr><td colspan="8" class="empty">検索結果でチェックした患者がここに表示されます</td></tr>';
+    const groups = groupedToday();
+    const showGroups = hasGroups(groups);
+    const html = [];
+    for (const g of groups) {
+      if (showGroups) html.push(`<tr class="group-row${g.gh ? ' gh' : ''}"><td colspan="8">${esc(groupLabel(g))}</td></tr>`);
+      const last = g.keys.length - 1;
+      g.keys.forEach((k, i) => {
+        const p = byKey.get(k);
+        const age = ageOf(p);
+        html.push(`<tr data-key="${esc(k)}">
+          <td>${esc(p.id)}</td><td>${esc(p.kana)}</td><td>${esc(p.name)}</td><td>${esc(p.sex)}</td>
+          <td>${esc(formatBirth(p, fmt))}</td><td class="num">${esc(age != null ? age : '')}</td>
+          <td class="addr">${esc(p.address)}</td>
+          <td class="col-ops"><div class="ops">
+            <button type="button" class="btn small" data-op="up" ${i === 0 ? 'disabled' : ''} title="上へ">↑</button>
+            <button type="button" class="btn small" data-op="down" ${i === last ? 'disabled' : ''} title="下へ">↓</button>
+            <button type="button" class="btn small" data-op="remove" title="リストから外す">外す</button>
+          </div></td>
+        </tr>`);
+      });
+    }
+    $('#today-table tbody').innerHTML = html.join('') || '<tr><td colspan="8" class="empty">検索結果でチェックした患者がここに表示されます</td></tr>';
     $('#btn-print').disabled = state.today.length === 0;
   }
 
@@ -667,14 +731,18 @@
     const btn = e.target.closest('button[data-op]');
     if (!btn) return;
     const key = btn.closest('tr').dataset.key;
-    const i = state.today.indexOf(key);
     if (btn.dataset.op === 'remove') {
-      state.today.splice(i, 1);
+      state.today = state.today.filter((k) => k !== key);
       renderSearch();
     } else {
+      // 同じグループ内でのみ入れ替える
+      const g = groupedToday().find((x) => x.keys.includes(key));
+      const i = g.keys.indexOf(key);
       const j = btn.dataset.op === 'up' ? i - 1 : i + 1;
-      if (j < 0 || j >= state.today.length) return;
-      [state.today[i], state.today[j]] = [state.today[j], state.today[i]];
+      if (j < 0 || j >= g.keys.length) return;
+      const a = state.today.indexOf(g.keys[i]);
+      const b = state.today.indexOf(g.keys[j]);
+      [state.today[a], state.today[b]] = [state.today[b], state.today[a]];
       state.todaySort = null;
     }
     save();
@@ -682,20 +750,68 @@
   }
 
   // ---------- 印刷 ----------
+  let measureCtx = null;
+
+  function textWidthPx(text, pt) {
+    if (!measureCtx) measureCtx = document.createElement('canvas').getContext('2d');
+    measureCtx.font = `${pt * PT_TO_PX}px ${PRINT_FONT}`;
+    return measureCtx.measureText(text).width;
+  }
+
+  // 列幅（mm）。住所は残りの幅すべて
+  function printColumns() {
+    const paperWidth = state.settings.paper === 'landscape' ? 297 : 210;
+    const total = paperWidth - PRINT_MARGIN_MM * 2;
+    const cols = [
+      { key: 'id', mm: 22 },
+      { key: 'kana', mm: 40 },
+      { key: 'name', mm: 34 },
+      { key: 'sex', mm: 11 },
+      { key: 'birth', mm: state.settings.birthFormat === 'both' ? 32 : 24 },
+      { key: 'age', mm: 12 },
+    ];
+    const used = cols.reduce((s, c) => s + c.mm, 0);
+    cols.push({ key: 'address', mm: Math.max(total - used, 30) });
+    return cols;
+  }
+
+  // セル幅に収まるよう文字を縮小する。最小サイズでも収まらなければ折り返す
+  function fitCell(text, mm, cls) {
+    const avail = (mm - 3) * MM_TO_PX; // 左右の余白と罫線ぶん
+    const w = textWidthPx(text, PRINT_BASE_PT);
+    let style = '';
+    if (text && w > avail) {
+      const pt = Math.max(PRINT_MIN_PT, Math.floor((PRINT_BASE_PT * avail / w) * 10) / 10);
+      style = `font-size:${pt}pt;`;
+      if (textWidthPx(text, pt) > avail) style += 'white-space:normal;';
+    }
+    return `<td class="${cls || ''}"${style ? ` style="${style}"` : ''}>${esc(text)}</td>`;
+  }
+
   function renderPrint() {
     const fmt = state.settings.birthFormat;
+    const cols = printColumns();
+    const width = Object.fromEntries(cols.map((c) => [c.key, c.mm]));
     $('#print-h1').textContent = state.settings.title || '訪問予定患者一覧';
     $('#print-meta').textContent = `訪問日: ${formatVisitDate(state.settings.visitDate || todayIso())}　${state.today.length}名`;
-    $('#print-body').innerHTML = state.today.map((k) => {
-      const p = byKey.get(k);
-      const age = ageOf(p);
-      return `<tr>
-        <td>${esc(p.id)}</td><td>${esc(p.kana)}</td><td>${esc(p.name)}</td><td>${esc(p.sex)}</td>
-        <td>${esc(formatBirth(p, fmt))}</td><td class="num">${esc(age != null ? age : '')}</td>
-        <td class="addr">${esc(p.address)}</td>
-      </tr>`;
-    }).join('');
-    $('#page-style').textContent = `@page { size: A4 ${state.settings.paper === 'landscape' ? 'landscape' : 'portrait'}; margin: 12mm; }`;
+    $('#print-cols').innerHTML = cols.map((c) => `<col style="width:${c.mm}mm">`).join('');
+    const groups = groupedToday();
+    const showGroups = hasGroups(groups);
+    const html = [];
+    for (const g of groups) {
+      if (showGroups) html.push(`<tr class="group-row"><td colspan="7">${esc(groupLabel(g))}</td></tr>`);
+      for (const k of g.keys) {
+        const p = byKey.get(k);
+        const age = ageOf(p);
+        html.push(`<tr>
+          ${fitCell(p.id, width.id)}${fitCell(p.kana, width.kana)}${fitCell(p.name, width.name)}${fitCell(p.sex, width.sex)}
+          ${fitCell(formatBirth(p, fmt), width.birth)}${fitCell(age != null ? String(age) : '', width.age, 'num')}
+          ${fitCell(p.address, width.address, 'addr')}
+        </tr>`);
+      }
+    }
+    $('#print-body').innerHTML = html.join('');
+    $('#page-style').textContent = `@page { size: A4 ${state.settings.paper === 'landscape' ? 'landscape' : 'portrait'}; margin: ${PRINT_MARGIN_MM}mm; }`;
   }
 
   // ---------- 全体 ----------
@@ -777,6 +893,7 @@
     bindSetting('#print-title', 'title', false);
     bindSetting('#birth-format', 'birthFormat', true);
     bindSetting('#paper', 'paper', false);
+    bindSetting('#gh-position', 'ghPosition', true);
 
     renderAll();
   }
