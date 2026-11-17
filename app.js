@@ -226,6 +226,15 @@
     return s;
   }
 
+  // 住所にこの名前が含まれていたら、グループホーム欄が空でもそのグループホームの患者として扱う。
+  // 増やすときは、この一覧に名前を追加する（空白・全角半角の違いは無視して探します）
+  const GH_NAMES_IN_ADDRESS = ['おひさまの家'];
+  function ghFromAddress(addr) {
+    const n = (s) => String(s == null ? '' : s).normalize('NFKC').replace(/\s+/g, '');
+    const a = n(addr);
+    return a ? GH_NAMES_IN_ADDRESS.find((g) => a.includes(n(g))) || '' : '';
+  }
+
   // グループホーム名を返す。グループホームでなければ空文字
   function normalizeGh(v) {
     const s = cleanText(v);
@@ -363,6 +372,9 @@
       const birthRawVal = get(raw, 'birth');
       const birthText = cleanText(get(fmt, 'birth'));
       const address = [cleanText(get(fmt, 'address')), cleanText(get(fmt, 'address2'))].filter(Boolean).join(' ');
+      // グループホーム列の名称を優先。空欄（または「○」などの印だけ）なら住所から判定
+      const ghCol = normalizeGh(get(fmt, 'gh'));
+      const gh = ghCol && ghCol !== GH_FLAG_LABEL ? ghCol : (ghFromAddress(address) || ghCol);
       out.push({
         row: r + sheet.rowOffset + 1,
         id: cleanText(get(fmt, 'id')),
@@ -374,7 +386,7 @@
         ageRaw: cleanText(get(fmt, 'age')),
         address,
         addr1: cleanText(get(fmt, 'address')),
-        gh: normalizeGh(get(fmt, 'gh')),
+        gh,
       });
     }
     // 重複しないキーを割り当てる（IDがあればID、重複・未設定なら行番号を付加）

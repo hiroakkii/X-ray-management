@@ -2,6 +2,8 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8">
+<!-- 通信先を国土地理院の地図画像（cyberjapandata.gsi.go.jp）と住所検索（msearch.gsi.go.jp）だけに限定（ブラウザが通信を止めます） -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://cyberjapandata.gsi.go.jp; font-src 'self'; connect-src https://msearch.gsi.go.jp; form-action 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>訪問患者リスト</title>
   <link rel="stylesheet" href="lib/leaflet/leaflet.css">
